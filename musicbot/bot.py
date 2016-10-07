@@ -1216,9 +1216,12 @@ class MusicBot(discord.Client):
                     else:
                         return Response("Song found, but failed to get URL?", delete_after=30)
                 else:
-                    if resultContent['message'] == 'SONG_NOT_FOUND':
-                        return Response('Song not found.', delete_after=30)
-                    else :
+                    if resultContent['Message']:
+                        if resultContent['Message'] == 'SONG_NOT_FOUND':
+                            return Response('Song not found.', delete_after=30)
+                        else:
+                            return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
+                    else:
                         return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
             except Exception as e:
                 await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
