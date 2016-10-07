@@ -8,6 +8,8 @@ import aiohttp
 import discord
 import asyncio
 import traceback
+import requests
+import json
 
 from discord import utils
 from discord.object import Object
@@ -1175,7 +1177,9 @@ class MusicBot(discord.Client):
             'yahoo': 'yvsearch',
             'yt': 'ytsearch',
             'sc': 'scsearch',
-            'yh': 'yvsearch'
+            'yh': 'yvsearch',
+            'symphogear': 'sylosearch',
+            'sy': 'sylosearch'
         }
 
         if leftover_args[0] in services:
@@ -1198,63 +1202,81 @@ class MusicBot(discord.Client):
             lchar = leftover_args[0][0]
             leftover_args[0] = leftover_args[0].lstrip(lchar)
             leftover_args[-1] = leftover_args[-1].rstrip(lchar)
-
-        search_query = '%s%s:%s' % (services[service], items_requested, ' '.join(leftover_args))
-
-        search_msg = await self.send_message(channel, "Searching for videos...")
-        await self.send_typing(channel)
-
-        try:
-            info = await self.downloader.extract_info(player.playlist.loop, search_query, download=False, process=True)
-
-        except Exception as e:
-            await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
-            return
-        else:
-            await self.safe_delete_message(search_msg)
-
-        if not info:
-            return Response("No videos found.", delete_after=30)
-
-        def check(m):
-            return (
-                m.content.lower()[0] in 'yn' or
-                # hardcoded function name weeee
-                m.content.lower().startswith('{}{}'.format(self.config.command_prefix, 'search')) or
-                m.content.lower().startswith('exit'))
-
-        for e in info['entries']:
-            result_message = await self.safe_send_message(channel, "Result %s/%s: %s" % (
-                info['entries'].index(e) + 1, len(info['entries']), e['webpage_url']))
-
-            confirm_message = await self.safe_send_message(channel, "Is this ok? Type `y`, `n` or `exit`")
-            response_message = await self.wait_for_message(30, author=author, channel=channel, check=check)
-
-            if not response_message:
-                await self.safe_delete_message(result_message)
-                await self.safe_delete_message(confirm_message)
-                return Response("Ok nevermind.", delete_after=30)
-
-            # They started a new search query so lets clean up and bugger off
-            elif response_message.content.startswith(self.config.command_prefix) or \
-                    response_message.content.lower().startswith('exit'):
-
-                await self.safe_delete_message(result_message)
-                await self.safe_delete_message(confirm_message)
+        
+        if service == "sylosearch" or service == 'sy' or service == 'symphogear':
+            search_query = leftover_args[0]
+            search_msg = await self.send_message(channel, "Searching for song...")
+            try:
+                apiContent = requests.get('http://server.icebingo.io:25563/api/v1/song-url/?searchString=' + search_query)
+                resultContent = apiContent.json()
+                if apiContent.status_code == 200:
+                    if resultContent['url']:
+                        await self.cmd_play(player, channel, author, permissions, [], resultContent['url'])
+                        return Response("Song found, adding to Queue.", delete_after=30)
+                    else:
+                        return Response("Song found, but failed to get URL?", delete_after=30)
+                else:
+                    if resultContent['message'] == 'SONG_NOT_FOUND':
+                        return Response('Song not found.', delete_after=30)
+                    else :
+                        return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
+            except Exception as e:
+                await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
                 return
-
-            if response_message.content.lower().startswith('y'):
-                await self.safe_delete_message(result_message)
-                await self.safe_delete_message(confirm_message)
-                await self.safe_delete_message(response_message)
-
-                await self.cmd_play(player, channel, author, permissions, [], e['webpage_url'])
-
-                return Response("Alright, coming right up!", delete_after=30)
             else:
-                await self.safe_delete_message(result_message)
-                await self.safe_delete_message(confirm_message)
-                await self.safe_delete_message(response_message)
+                await self.safe_delete_message(search_msg)
+            return Response("test", delete_after=30)
+        else:
+            search_query = '%s%s:%s' % (services[service], items_requested, ' '.join(leftover_args))
+            search_msg = await self.send_message(channel, "Searching for videos...")
+            await self.send_typing(channel)
+            try:
+                info = await self.downloader.extract_info(player.playlist.loop, search_query, download=False, process=True)
+            except Exception as e:
+                await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
+                return
+            else:
+                await self.safe_delete_message(search_msg)
+            if not info:
+                return Response("No videos found.", delete_after=30)
+            def check(m):
+                return (
+                    m.content.lower()[0] in 'yn' or
+                    # hardcoded function name weeee
+                    m.content.lower().startswith('{}{}'.format(self.config.command_prefix, 'search')) or
+                    m.content.lower().startswith('exit'))
+            for e in info['entries']:
+                result_message = await self.safe_send_message(channel, "Result %s/%s: %s" % (
+                    info['entries'].index(e) + 1, len(info['entries']), e['webpage_url']))
+
+                confirm_message = await self.safe_send_message(channel, "Is this ok? Type `y`, `n` or `exit`")
+                response_message = await self.wait_for_message(30, author=author, channel=channel, check=check)
+
+                if not response_message:
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    return Response("Ok nevermind.", delete_after=30)
+
+                # They started a new search query so lets clean up and bugger off
+                elif response_message.content.startswith(self.config.command_prefix) or \
+                        response_message.content.lower().startswith('exit'):
+
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    return
+
+                if response_message.content.lower().startswith('y'):
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    await self.safe_delete_message(response_message)
+
+                    await self.cmd_play(player, channel, author, permissions, [], e['webpage_url'])
+
+                    return Response("Alright, coming right up!", delete_after=30)
+                else:
+                    await self.safe_delete_message(result_message)
+                    await self.safe_delete_message(confirm_message)
+                    await self.safe_delete_message(response_message)
 
         return Response("Oh well :frowning:", delete_after=30)
 
