@@ -10,6 +10,7 @@ import asyncio
 import traceback
 import requests
 import json
+import random
 
 from discord import utils
 from discord.object import Object
@@ -1205,23 +1206,36 @@ class MusicBot(discord.Client):
         
         if service == "sylosearch" or service == 'sy' or service == 'symphogear':
             search_query = leftover_args[0]
-            search_msg = await self.send_message(channel, "Searching for song...")
+            search_msg = await self.safe_send_message(channel, "Searching for song...")
             try:
                 apiContent = requests.get('http://server.icebingo.io:25563/api/v1/song-url/?searchString=' + search_query)
                 resultContent = apiContent.json()
                 if apiContent.status_code == 200:
                     if resultContent['url']:
                         await self.cmd_play(player, channel, author, permissions, [], resultContent['url'])
-                        return Response("Song found, adding to Queue.", delete_after=30)
+                        try:
+                            foundTitle = resultContent['url'].rsplit('/', 1)[1];
+                            foundTitle = os.path.splitext(foundTitle)[0];
+                            await self.safe_delete_message(search_msg)
+                            return Response("Song found, " + foundTitle + ", adding to Queue.", delete_after=30)
+                        except:
+                            await self.safe_delete_message(search_msg)
+                            return Response("Song found, adding to Queue.", delete_after=30)
+                        await self.safe_delete_message(search_msg)
+                        return Response("Song found, " + resultContent['url'].rsplit('/', 1)[1] + ", adding to Queue.", delete_after=30)
                     else:
+                        await self.safe_delete_message(search_msg)
                         return Response("Song found, but failed to get URL?", delete_after=30)
                 else:
                     if resultContent['Message']:
                         if resultContent['Message'] == 'SONG_NOT_FOUND':
+                            await self.safe_delete_message(search_msg)
                             return Response('Song not found.', delete_after=30)
                         else:
+                            await self.safe_delete_message(search_msg)
                             return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
                     else:
+                        await self.safe_delete_message(search_msg)
                         return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
             except Exception as e:
                 await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
@@ -1836,6 +1850,12 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, ":wave:")
         await self.disconnect_all_voice_clients()
         raise exceptions.TerminateSignal
+
+    async def cmd_choose(self, channel, leftover_args):
+        aviliable = leftover_args[0].split(';')
+        chosenNumber = random.randint(0, len(aviliable)-1)
+        await self.safe_send_message(channel, aviliable[chosenNumber])
+        return
 
     async def on_message(self, message):
         await self.wait_until_ready()
