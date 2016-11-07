@@ -154,11 +154,20 @@ class Config:
                 print("[Warning] AutojoinChannels data invalid, will not autojoin any channels")
                 self.autojoin_channels = set()
 
+        if self.announcment_channels:
+            try:
+                self.announcment_channels = set(x for x in self.announcment_channels.split() if x)
+            except:
+                print("[Warning] AnnouncmentChannels data invalid")
+                self.announcment_channels = set()
+
         self.delete_invoking = self.delete_invoking and self.delete_messages
 
         self.bound_channels = set(item.replace(',', ' ').strip() for item in self.bound_channels)
 
         self.autojoin_channels = set(item.replace(',', ' ').strip() for item in self.autojoin_channels)
+
+        self.announcment_channels = set(item.replace(',', ' ').strip() for item in self.announcment_channels)
 
     # TODO: Add save function for future editing of options with commands
     #       Maybe add warnings about fields missing from the config file
