@@ -1857,6 +1857,33 @@ class MusicBot(discord.Client):
         await self.safe_send_message(channel, aviliable[chosenNumber])
         return
 
+    async def cmd_rolecount(self, channel, server):
+        try:
+            roles = {}
+            # attempt to get announcment channels in the config. Otherwise use the channel the bot got the message from.
+            annChlist = set(self.get_channel(i) for i in self.config.announcment_channels if i)
+            if len(annChlist) == 0 or all(x is None for x in annChlist):
+                annChlist = [channel]
+            # get the roles of the members on the server and count them.
+            for member in server.members:
+                for role in member.roles:
+                    if role.name in roles:
+                        roles[role.name]['count'] += 1
+                    else:
+                        roles[role.name] = {'count': 1, 'mention': role.mention}
+            #attempt to send a meesage to the announcement channels if they are on the same server that called the command.
+            for ch in annChlist:
+                if ch != None and ch.server.id == server.id:
+                    RoleMessage = ''
+                    for property, value in roles.items():
+                        if property != "@everyone":
+                            RoleMessage += value['mention'] + ': ' + str(value['count']) + '\n'
+                    await self.safe_send_message(ch, RoleMessage)
+        except Exception as e:
+            raise exceptions.CommandError("Unable to get role counts for server" % e, expire_in=30)
+
+        return
+
     async def on_message(self, message):
         await self.wait_until_ready()
 
