@@ -1111,8 +1111,8 @@ class MusicBot(discord.Client):
         """Provides a basic template for embeds"""
         e = discord.Embed()
         e.colour = 7506394
-        e.set_footer(text='Just-Some-Bots/MusicBot ({})'.format(BOTVERSION), icon_url='https://i.imgur.com/gFHBoZA.png')
-        e.set_author(name=self.user.name, url='https://github.com/Just-Some-Bots/MusicBot', icon_url=self.user.avatar_url)
+        e.set_footer(text='firebingo/MusicBot ({})'.format(BOTVERSION), icon_url='https://i.imgur.com/gFHBoZA.png')
+        e.set_author(name=self.user.name, url='https://github.com/firebingo/MusicBot', icon_url=self.user.avatar_url)
         return e
 
     async def cmd_resetplaylist(self, player, channel):
@@ -1746,7 +1746,9 @@ class MusicBot(discord.Client):
             'yahoo': 'yvsearch',
             'yt': 'ytsearch',
             'sc': 'scsearch',
-            'yh': 'yvsearch'
+            'yh': 'yvsearch',
+			'sy': 'sgsearch',
+            'symphogear': 'sgsearch'
         }
 
         if leftover_args[0] in services:
@@ -1770,7 +1772,48 @@ class MusicBot(discord.Client):
             leftover_args[0] = leftover_args[0].lstrip(lchar)
             leftover_args[-1] = leftover_args[-1].rstrip(lchar)
 
-        search_query = '%s%s:%s' % (services[service], items_requested, ' '.join(leftover_args))
+        if services[service] == 'sgsearch':
+            search_query = ' '.join(leftover_args)
+            search_msg = await self.safe_send_message(channel, "Searching for song...")
+            try:
+                params = { 'searchString': search_query }
+                async with self.aiosession.get('https://server.icebingo.io/api/v1/song-url', params=params) as response:
+                    resultContent = await response.json()
+                    if response.status == 200:
+                        if resultContent['url']:
+                            await self.cmd_play(message, player, channel, author, permissions, [], resultContent['url'])
+                            try:
+                                foundTitle = resultContent['url'].rsplit('/', 1)[1];
+                                foundTitle = os.path.splitext(foundTitle)[0];
+                                await self.safe_delete_message(search_msg)
+                                return Response("Song found, " + foundTitle + ", adding to Queue.", delete_after=30)
+                            except:
+                                await self.safe_delete_message(search_msg)
+                                return Response("Song found, adding to Queue.", delete_after=30)
+                            await self.safe_delete_message(search_msg)
+                            return Response("Song found, " + resultContent['url'].rsplit('/', 1)[1] + ", adding to Queue.", delete_after=30)
+                        else:
+                            await self.safe_delete_message(search_msg)
+                            return Response("Song found, but failed to get URL?", delete_after=30)
+                    else:
+                        if resultContent['Message']:
+                            if resultContent['Message'] == 'SONG_NOT_FOUND':
+                                await self.safe_delete_message(search_msg)
+                                return Response('Song not found.', delete_after=30)
+                            else:
+                                await self.safe_delete_message(search_msg)
+                                return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
+                        else:
+                            await self.safe_delete_message(search_msg)
+                            return Response('An unknown error occured in the api. Code:' + str(apiContent.status_code), delete_after=30)
+            except Exception as e:
+                await self.safe_edit_message(search_msg, str(e), send_if_fail=True)
+                return
+            else:
+                await self.safe_delete_message(search_msg)
+            return Response("test", delete_after=30)
+        else:
+            search_query = '%s%s:%s' % (services[service], items_requested, ' '.join(leftover_args))
 
         search_msg = await self.safe_send_message(channel, self.str.get('cmd-search-searching', "Searching for videos..."))
         await self.send_typing(channel)
